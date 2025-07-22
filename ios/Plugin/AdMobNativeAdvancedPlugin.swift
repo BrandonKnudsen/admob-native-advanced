@@ -64,10 +64,9 @@ public class AdMobNativeAdvancedPlugin: CAPPlugin {
         if let price = nativeAd.price { adData["price"] = price }
         if let starRating = nativeAd.starRating { adData["starRating"] = starRating.doubleValue }
         // Media content: check for video content, otherwise get images
-        if let mediaContent = nativeAd.mediaContent {
-            adData["hasVideoContent"] = mediaContent.hasVideoContent
-            // No videoURL available in SDK 11.x
-        }
+        let mediaContent = nativeAd.mediaContent
+        adData["hasVideoContent"] = mediaContent.hasVideoContent
+        // No videoURL available in SDK 11.x
         // Get main image from images array
         if let images = nativeAd.images, let mainImage = images.first?.image {
             adData["mediaContentUrl"] = imageToBase64(mainImage)
