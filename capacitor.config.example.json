@@ -1,0 +1,14 @@
+{
+  "appId": "com.example.admobapp",
+  "appName": "AdMob Native Advanced Demo",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "plugins": {
+    "AdMobNativeAdvanced": {
+      "appId": "ca-app-pub-xxxxxxxxxxxxxxxx~yyyyyyyyyy"
+    }
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+} 
