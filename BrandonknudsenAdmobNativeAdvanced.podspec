@@ -9,6 +9,15 @@ Pod::Spec.new do |spec|
   spec.source_files = 'ios/Plugin/**/*.{swift,h,m,c,cc,mm,cpp}'
   spec.ios.deployment_target  = '13.0'
   spec.dependency 'Capacitor'
-  spec.dependency 'Google-Mobile-Ads-SDK', '~> 10.0'
+  spec.dependency 'Google-Mobile-Ads-SDK', '~> 11.0'
+  spec.dependency 'GoogleUserMessagingPlatform', '~> 3.0'
   spec.swift_version = '5.1'
+  
+  # Use dynamic linking to avoid static linking conflicts
+  spec.static_framework = false
+  spec.pod_target_xcconfig = {
+    'CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES' => 'YES',
+    'DEFINES_MODULE' => 'YES',
+    'BUILD_LIBRARY_FOR_DISTRIBUTION' => 'YES'
+  }
 end 
