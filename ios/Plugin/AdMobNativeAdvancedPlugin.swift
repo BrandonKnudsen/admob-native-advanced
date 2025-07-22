@@ -7,13 +7,13 @@ import UIKit
 public class AdMobNativeAdvancedPlugin: CAPPlugin {
     private var isInitialized = false
     private var loadedAds: [String: GADNativeAd] = [:]
+    private var pendingCalls: [Int: CAPPluginCall] = [:] // Keyed by adLoader's hashValue
     
     @objc func initialize(_ call: CAPPluginCall) {
         guard let appId = call.getString("appId"), !appId.isEmpty else {
             call.reject("App ID is required")
             return
         }
-        
         // Initialize MobileAds SDK
         GADMobileAds.sharedInstance().start { [weak self] status in
             DispatchQueue.main.async {
@@ -29,129 +29,63 @@ public class AdMobNativeAdvancedPlugin: CAPPlugin {
             call.reject("AdMob must be initialized before loading ads")
             return
         }
-        
         guard let adUnitId = call.getString("adUnitId"), !adUnitId.isEmpty else {
             call.reject("Ad Unit ID is required")
             return
         }
-        
         // Create AdLoader for native ads
         let adLoader = GADAdLoader(adUnitID: adUnitId, rootViewController: nil, adTypes: [.native], options: nil)
         adLoader.delegate = self
-        
+        // Store the call for later resolution, keyed by adLoader's hashValue
+        pendingCalls[adLoader.hash] = call
         // Load the ad
         let request = GADRequest()
         adLoader.load(request)
-        
-        // Store the call for later resolution
-        adLoader.userInfo = ["call": call]
     }
     
     @objc func reportClick(_ call: CAPPluginCall) {
-        guard let adId = call.getString("adId"), !adId.isEmpty else {
-            call.reject("Ad ID is required")
-            return
-        }
-        
-        guard let nativeAd = loadedAds[adId] else {
-            call.reject("Ad not found with ID: \(adId)")
-            return
-        }
-        
-        // Report click to AdMob (assuming click on call to action)
-        nativeAd.performClickOnAsset(withKey: GADNativeCallToActionAsset)
-        call.resolve()
+        // No longer possible to programmatically report clicks in the latest SDK
+        call.resolve(["message": "Click reporting is handled automatically by the SDK."])
     }
     
     @objc func reportImpression(_ call: CAPPluginCall) {
-        guard let adId = call.getString("adId"), !adId.isEmpty else {
-            call.reject("Ad ID is required")
-            return
-        }
-        
-        guard let nativeAd = loadedAds[adId] else {
-            call.reject("Ad not found with ID: \(adId)")
-            return
-        }
-        
-        // Report impression to AdMob
-        nativeAd.recordImpression()
-        call.resolve()
+        // No longer possible to programmatically report impressions in the latest SDK
+        call.resolve(["message": "Impression reporting is handled automatically by the SDK."])
     }
     
     private func extractAdData(from nativeAd: GADNativeAd, adId: String) -> [String: Any] {
         var adData: [String: Any] = [:]
         adData["adId"] = adId
-        
-        // Extract headline
-        if let headline = nativeAd.headline {
-            adData["headline"] = headline
-        }
-        
-        // Extract body
-        if let body = nativeAd.body {
-            adData["body"] = body
-        }
-        
-        // Extract call to action
-        if let callToAction = nativeAd.callToAction {
-            adData["callToAction"] = callToAction
-        }
-        
-        // Extract advertiser
-        if let advertiser = nativeAd.advertiser {
-            adData["advertiser"] = advertiser
-        }
-        
-        // Extract store (for app install ads)
-        if let store = nativeAd.store {
-            adData["store"] = store
-        }
-        
-        // Extract price (for app install ads)
-        if let price = nativeAd.price {
-            adData["price"] = price
-        }
-        
-        // Extract star rating (for app install ads)
-        if let starRating = nativeAd.starRating {
-            adData["starRating"] = starRating.doubleValue
-        }
-        
-        // Extract media content
-        var mediaContentUrl: String? = nil
+        if let headline = nativeAd.headline { adData["headline"] = headline }
+        if let body = nativeAd.body { adData["body"] = body }
+        if let callToAction = nativeAd.callToAction { adData["callToAction"] = callToAction }
+        if let advertiser = nativeAd.advertiser { adData["advertiser"] = advertiser }
+        if let store = nativeAd.store { adData["store"] = store }
+        if let price = nativeAd.price { adData["price"] = price }
+        if let starRating = nativeAd.starRating { adData["starRating"] = starRating.doubleValue }
+        // Media content: check for video content, otherwise get images
         if let mediaContent = nativeAd.mediaContent {
-            if mediaContent.hasVideoContent, let videoURL = mediaContent.videoURL {
-                mediaContentUrl = videoURL.absoluteString
-            } else if let mainImage = mediaContent.mainImage {
-                mediaContentUrl = imageToBase64(mainImage)
-            }
+            adData["hasVideoContent"] = mediaContent.hasVideoContent
+            // No videoURL available in SDK 11.x
         }
-        adData["mediaContentUrl"] = mediaContentUrl
-        
-        // Extract icon
-        var iconUrl: String? = nil
+        // Get main image from images array
+        if let images = nativeAd.images, let mainImage = images.first?.image {
+            adData["mediaContentUrl"] = imageToBase64(mainImage)
+        } else {
+            adData["mediaContentUrl"] = nil
+        }
+        // Icon
         if let iconImage = nativeAd.icon?.image {
-            iconUrl = imageToBase64(iconImage)
+            adData["iconUrl"] = imageToBase64(iconImage)
+        } else {
+            adData["iconUrl"] = nil
         }
-        adData["iconUrl"] = iconUrl
-        
-        // Extract AdChoices icon
-        var adChoicesIconUrl: String? = nil
-        if let adChoicesInfo = nativeAd.adChoicesInfo, let logoImage = adChoicesInfo.images.first?.image {
-            adChoicesIconUrl = imageToBase64(logoImage)
-        }
-        adData["adChoicesIconUrl"] = adChoicesIconUrl
-        
-        // Extract AdChoices text
-        if nativeAd.adChoicesInfo != nil {
-            adData["adChoicesText"] = "AdChoices"
-        }
-        
+        // AdChoices: No longer available as adChoicesInfo, so we can't extract icon/text
+        adData["adChoicesIconUrl"] = nil
+        adData["adChoicesText"] = nil
         // Determine ad type
         adData["isAppInstallAd"] = nativeAd.store != nil
         adData["isContentAd"] = nativeAd.store == nil
-        
         return adData
     }
     
@@ -160,27 +94,20 @@ public class AdMobNativeAdvancedPlugin: CAPPlugin {
         return "data:image/png;base64," + data.base64EncodedString()
     }
 }
-
 // MARK: - GADNativeAdLoaderDelegate
 extension AdMobNativeAdvancedPlugin: GADNativeAdLoaderDelegate {
     public func adLoader(_ adLoader: GADAdLoader, didReceive nativeAd: GADNativeAd) {
-        // Generate unique ID for this ad
         let adId = UUID().uuidString
         loadedAds[adId] = nativeAd
-        
-        // Extract ad data
         let adData = extractAdData(from: nativeAd, adId: adId)
-        
         // Resolve the call
-        if let call = adLoader.userInfo?["call"] as? CAPPluginCall {
+        if let call = pendingCalls.removeValue(forKey: adLoader.hash) {
             call.resolve(adData)
         }
     }
-    
     public func adLoader(_ adLoader: GADAdLoader, didFailToReceiveAdWithError error: Error) {
         print("Ad failed to load: \(error.localizedDescription)")
-        
-        if let call = adLoader.userInfo?["call"] as? CAPPluginCall {
+        if let call = pendingCalls.removeValue(forKey: adLoader.hash) {
             call.reject("Ad failed to load: \(error.localizedDescription)")
         }
     }
