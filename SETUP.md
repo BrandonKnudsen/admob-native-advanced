@@ -68,7 +68,7 @@ ionic cap sync
 1. **Add to `src/app/app.component.ts`:**
 ```typescript
 import { Component } from '@angular/core';
-import { AdMobNativeAdvanced } from '@capacitor-community/admob-native-advanced';
+import { AdMobNativeAdvanced } from '@brandonknudsen/admob-native-advanced';
 
 @Component({
   selector: 'app-root',
@@ -96,7 +96,7 @@ export class AppComponent {
 2. **Add to `src/app/tab1/tab1.page.ts`:**
 ```typescript
 import { Component } from '@angular/core';
-import { AdMobNativeAdvanced, NativeAdData } from '@capacitor-community/admob-native-advanced';
+import { AdMobNativeAdvanced, NativeAdData } from '@brandonknudsen/admob-native-advanced';
 
 @Component({
   selector: 'app-tab1',

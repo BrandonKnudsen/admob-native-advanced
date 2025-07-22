@@ -19,7 +19,7 @@ A Capacitor plugin for displaying Google AdMob Native Advanced Ads in Ionic and 
 ### 1. Install the plugin
 
 ```bash
-npm install @capacitor-community/admob-native-advanced
+npm install @brandonknudsen/admob-native-advanced
 ```
 
 ### 2. Add to your Capacitor project
@@ -57,7 +57,7 @@ Add the following to your `ios/App/App/Info.plist`:
 ### 1. Initialize AdMob
 
 ```typescript
-import { AdMobNativeAdvanced } from '@capacitor-community/admob-native-advanced';
+import { AdMobNativeAdvanced } from '@brandonknudsen/admob-native-advanced';
 
 // Initialize with your AdMob app ID
 await AdMobNativeAdvanced.initialize({
@@ -94,7 +94,7 @@ console.log('Ad loaded:', adData);
 ```typescript
 // native-ad.component.ts
 import { Component, Input, Output, EventEmitter } from '@angular/core';
-import { AdMobNativeAdvanced, NativeAdData } from '@capacitor-community/admob-native-advanced';
+import { AdMobNativeAdvanced, NativeAdData } from '@brandonknudsen/admob-native-advanced';
 
 @Component({
   selector: 'app-native-ad',
@@ -258,7 +258,7 @@ export class NativeAdComponent {
 ```typescript
 // feed.component.ts
 import { Component, OnInit } from '@angular/core';
-import { AdMobNativeAdvanced, NativeAdData } from '@capacitor-community/admob-native-advanced';
+import { AdMobNativeAdvanced, NativeAdData } from '@brandonknudsen/admob-native-advanced';
 
 @Component({
   selector: 'app-feed',
