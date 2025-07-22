@@ -41,7 +41,8 @@
     "ios/",
     "android/",
     "src/",
-    "README.md"
+    "README.md",
+    "BrandonknudsenAdmobNativeAdvanced.podspec"
   ],
   "capacitor": {
     "ios": {
