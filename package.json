@@ -1,10 +1,10 @@
 {
   "name": "@brandonknudsen/admob-native-advanced",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Capacitor plugin for Google AdMob Native Advanced Ads",
-  "main": "dist/plugin.js",
-  "module": "dist/esm/index.js",
-  "types": "dist/esm/index.d.ts",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
     "build": "npm run clean && tsc",
     "clean": "rimraf ./dist",
