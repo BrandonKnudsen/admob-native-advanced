@@ -1,9 +1,6 @@
 import { registerPlugin } from '@capacitor/core';
 import type { 
-  AdMobNativeAdvancedPlugin, 
-  InitializeOptions, 
-  LoadAdOptions, 
-  NativeAdData 
+  AdMobNativeAdvancedPlugin
 } from './definitions';
 
 const AdMobNativeAdvanced = registerPlugin<AdMobNativeAdvancedPlugin>('AdMobNativeAdvanced', {

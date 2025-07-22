@@ -8,12 +8,12 @@ import type {
 export class AdMobNativeAdvancedWeb implements AdMobNativeAdvancedPlugin {
   private isInitialized = false;
 
-  async initialize(options: InitializeOptions): Promise<void> {
+  async initialize(_options: InitializeOptions): Promise<void> {
     console.warn('AdMob Native Advanced Ads are not supported on web platform');
     this.isInitialized = true;
   }
 
-  async loadAd(options: LoadAdOptions): Promise<NativeAdData> {
+  async loadAd(_options: LoadAdOptions): Promise<NativeAdData> {
     if (!this.isInitialized) {
       throw new Error('AdMob must be initialized before loading ads');
     }
