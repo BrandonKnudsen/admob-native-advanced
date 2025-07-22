@@ -8,12 +8,14 @@ public class AdMobNativeAdvancedPlugin: CAPPlugin {
     private var isInitialized = false
     private var loadedAds: [String: GADNativeAd] = [:]
     private var pendingCalls: [Int: CAPPluginCall] = [:] // Keyed by adLoader's hashValue
+    private var timeoutTasks: [Int: DispatchWorkItem] = [:] // Track timeout tasks
     
     @objc func initialize(_ call: CAPPluginCall) {
         guard let appId = call.getString("appId"), !appId.isEmpty else {
             call.reject("App ID is required")
             return
         }
+        
         // Initialize MobileAds SDK
         GADMobileAds.sharedInstance().start { [weak self] status in
             DispatchQueue.main.async {
@@ -29,18 +31,51 @@ public class AdMobNativeAdvancedPlugin: CAPPlugin {
             call.reject("AdMob must be initialized before loading ads")
             return
         }
+        
         guard let adUnitId = call.getString("adUnitId"), !adUnitId.isEmpty else {
-            call.reject("Ad Unit ID is required")
+            call.reject("Missing adUnitId parameter")
             return
         }
-        // Create AdLoader for native ads
-        let adLoader = GADAdLoader(adUnitID: adUnitId, rootViewController: nil, adTypes: [.native], options: nil)
-        adLoader.delegate = self
-        // Store the call for later resolution, keyed by adLoader's hashValue
-        pendingCalls[adLoader.hash] = call
-        // Load the ad
-        let request = GADRequest()
-        adLoader.load(request)
+        
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else {
+                call.reject("Plugin instance deallocated")
+                return
+            }
+            
+            // Create AdLoader for native ads
+            let adLoader = GADAdLoader(
+                adUnitID: adUnitId,
+                rootViewController: nil,
+                adTypes: [.native],
+                options: nil
+            )
+            adLoader.delegate = self
+            
+            // Store the call for later resolution
+            self.pendingCalls[adLoader.hash] = call
+            
+            // Create timeout task (10 seconds as specified in instructions)
+            let timeoutTask = DispatchWorkItem { [weak self] in
+                guard let self = self else { return }
+                
+                // Check if call is still pending and resolve with timeout error
+                if let pendingCall = self.pendingCalls.removeValue(forKey: adLoader.hash) {
+                    self.timeoutTasks.removeValue(forKey: adLoader.hash)
+                    pendingCall.reject("Ad load timeout - no response within 10 seconds")
+                }
+            }
+            
+            // Store timeout task
+            self.timeoutTasks[adLoader.hash] = timeoutTask
+            
+            // Schedule timeout
+            DispatchQueue.main.asyncAfter(deadline: .now() + 10.0, execute: timeoutTask)
+            
+            // Load the ad
+            let request = GADRequest()
+            adLoader.load(request)
+        }
     }
     
     @objc func reportClick(_ call: CAPPluginCall) {
@@ -63,28 +98,33 @@ public class AdMobNativeAdvancedPlugin: CAPPlugin {
         if let store = nativeAd.store { adData["store"] = store }
         if let price = nativeAd.price { adData["price"] = price }
         if let starRating = nativeAd.starRating { adData["starRating"] = starRating.doubleValue }
+        
         // Media content: check for video content, otherwise get images
         let mediaContent = nativeAd.mediaContent
         adData["hasVideoContent"] = mediaContent.hasVideoContent
-        // No videoURL available in SDK 11.x
+        
         // Get main image from images array
         if let images = nativeAd.images, let mainImage = images.first?.image {
             adData["mediaContentUrl"] = imageToBase64(mainImage)
         } else {
             adData["mediaContentUrl"] = nil
         }
+        
         // Icon
         if let iconImage = nativeAd.icon?.image {
             adData["iconUrl"] = imageToBase64(iconImage)
         } else {
             adData["iconUrl"] = nil
         }
+        
         // AdChoices: No longer available as adChoicesInfo, so we can't extract icon/text
         adData["adChoicesIconUrl"] = nil
         adData["adChoicesText"] = nil
+        
         // Determine ad type
         adData["isAppInstallAd"] = nativeAd.store != nil
         adData["isContentAd"] = nativeAd.store == nil
+        
         return adData
     }
     
@@ -92,22 +132,51 @@ public class AdMobNativeAdvancedPlugin: CAPPlugin {
         guard let data = image.pngData() else { return nil }
         return "data:image/png;base64," + data.base64EncodedString()
     }
+    
+    private func cleanupCall(for adLoader: GADAdLoader) {
+        // Cancel timeout task if it exists
+        if let timeoutTask = timeoutTasks.removeValue(forKey: adLoader.hash) {
+            timeoutTask.cancel()
+        }
+        // Remove pending call
+        pendingCalls.removeValue(forKey: adLoader.hash)
+    }
 }
+
 // MARK: - GADNativeAdLoaderDelegate
 extension AdMobNativeAdvancedPlugin: GADNativeAdLoaderDelegate {
     public func adLoader(_ adLoader: GADAdLoader, didReceive nativeAd: GADNativeAd) {
+        // Get the pending call before cleanup
+        guard let call = pendingCalls[adLoader.hash] else {
+            print("Warning: Received ad but no pending call found")
+            return
+        }
+        
+        // Clean up timeout and pending call
+        cleanupCall(for: adLoader)
+        
+        // Generate unique ad ID and store the ad
         let adId = UUID().uuidString
         loadedAds[adId] = nativeAd
+        
+        // Extract ad data and resolve the call
         let adData = extractAdData(from: nativeAd, adId: adId)
-        // Resolve the call
-        if let call = pendingCalls.removeValue(forKey: adLoader.hash) {
-            call.resolve(adData)
-        }
+        call.resolve(adData)
     }
+    
     public func adLoader(_ adLoader: GADAdLoader, didFailToReceiveAdWithError error: Error) {
         print("Ad failed to load: \(error.localizedDescription)")
-        if let call = pendingCalls.removeValue(forKey: adLoader.hash) {
-            call.reject("Ad failed to load: \(error.localizedDescription)")
+        
+        // Get the pending call before cleanup
+        guard let call = pendingCalls[adLoader.hash] else {
+            print("Warning: Ad load failed but no pending call found")
+            return
         }
+        
+        // Clean up timeout and pending call
+        cleanupCall(for: adLoader)
+        
+        // Reject the call with detailed error
+        call.reject("Failed to load ad: \(error.localizedDescription)")
     }
 } 

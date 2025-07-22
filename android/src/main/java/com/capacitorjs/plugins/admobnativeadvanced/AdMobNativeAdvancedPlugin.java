@@ -27,12 +27,16 @@ import android.graphics.drawable.Drawable;
 import android.util.Base64;
 import java.io.ByteArrayOutputStream;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 
 @CapacitorPlugin(name = "AdMobNativeAdvanced")
 public class AdMobNativeAdvancedPlugin extends Plugin {
     private static final String TAG = "AdMobNativeAdvanced";
     private boolean isInitialized = false;
     private Map<String, NativeAd> loadedAds = new HashMap<>();
+    private Map<String, Runnable> timeoutTasks = new HashMap<>(); // Track timeout tasks
+    private Handler mainHandler = new Handler(Looper.getMainLooper());
 
     @PluginMethod
     public void initialize(PluginCall call) {
@@ -72,7 +76,7 @@ public class AdMobNativeAdvancedPlugin extends Plugin {
 
             String adUnitId = call.getString("adUnitId");
             if (adUnitId == null || adUnitId.isEmpty()) {
-                call.reject("Ad Unit ID is required");
+                call.reject("Missing adUnitId parameter");
                 return;
             }
 
@@ -82,29 +86,103 @@ public class AdMobNativeAdvancedPlugin extends Plugin {
                 return;
             }
 
-            // Create AdLoader for native ads
-            AdLoader adLoader = new AdLoader.Builder(activity, adUnitId)
-                    .forNativeAd(nativeAd -> {
-                        // Generate unique ID for this ad
-                        String adId = UUID.randomUUID().toString();
-                        loadedAds.put(adId, nativeAd);
-
-                        // Extract ad data
-                        JSObject adData = extractAdData(nativeAd, adId);
-                        call.resolve(adData);
-                    })
-                    .withAdListener(new com.google.android.gms.ads.AdListener() {
-                        @Override
-                        public void onAdFailedToLoad(LoadAdError loadAdError) {
-                            Log.e(TAG, "Ad failed to load: " + loadAdError.getMessage());
-                            call.reject("Ad failed to load: " + loadAdError.getMessage());
+            // Run on UI thread as required by AdMob
+            activity.runOnUiThread(() -> {
+                try {
+                    // Generate unique key for this request to track timeout
+                    String requestId = UUID.randomUUID().toString();
+                    
+                    // Create timeout task (10 seconds as specified in instructions)
+                    Runnable timeoutTask = () -> {
+                        if (!call.isResolved()) {
+                            timeoutTasks.remove(requestId);
+                            call.reject("Ad load timeout - no response within 10 seconds");
                         }
-                    })
-                    .build();
+                    };
+                    
+                    // Store timeout task
+                    timeoutTasks.put(requestId, timeoutTask);
+                    
+                    // Schedule timeout
+                    mainHandler.postDelayed(timeoutTask, 10000);
 
-            // Load the ad
-            AdRequest adRequest = new AdRequest.Builder().build();
-            adLoader.loadAd(adRequest);
+                    // Create AdLoader for native ads
+                    AdLoader adLoader = new AdLoader.Builder(activity, adUnitId)
+                            .forNativeAd(nativeAd -> {
+                                try {
+                                    // Cancel timeout task
+                                    Runnable timeout = timeoutTasks.remove(requestId);
+                                    if (timeout != null) {
+                                        mainHandler.removeCallbacks(timeout);
+                                    }
+                                    
+                                    // Check if call is still valid
+                                    if (call.isResolved()) {
+                                        Log.w(TAG, "Call already resolved, ignoring ad load success");
+                                        return;
+                                    }
+                                    
+                                    // Generate unique ID for this ad
+                                    String adId = UUID.randomUUID().toString();
+                                    loadedAds.put(adId, nativeAd);
+
+                                    // Extract ad data and resolve
+                                    JSObject adData = extractAdData(nativeAd, adId);
+                                    call.resolve(adData);
+                                    
+                                } catch (Exception e) {
+                                    Log.e(TAG, "Error processing loaded ad", e);
+                                    if (!call.isResolved()) {
+                                        call.reject("Failed to process loaded ad: " + e.getMessage());
+                                    }
+                                }
+                            })
+                            .withAdListener(new com.google.android.gms.ads.AdListener() {
+                                @Override
+                                public void onAdFailedToLoad(LoadAdError loadAdError) {
+                                    try {
+                                        // Cancel timeout task
+                                        Runnable timeout = timeoutTasks.remove(requestId);
+                                        if (timeout != null) {
+                                            mainHandler.removeCallbacks(timeout);
+                                        }
+                                        
+                                        // Check if call is still valid
+                                        if (call.isResolved()) {
+                                            Log.w(TAG, "Call already resolved, ignoring ad load failure");
+                                            return;
+                                        }
+                                        
+                                        Log.e(TAG, "Ad failed to load: " + loadAdError.getMessage());
+                                        call.reject("Failed to load ad: " + loadAdError.getMessage());
+                                        
+                                    } catch (Exception e) {
+                                        Log.e(TAG, "Error processing ad load failure", e);
+                                        if (!call.isResolved()) {
+                                            call.reject("Failed to load ad: " + e.getMessage());
+                                        }
+                                    }
+                                }
+                            })
+                            .build();
+
+                    // Load the ad
+                    AdRequest adRequest = new AdRequest.Builder().build();
+                    adLoader.loadAd(adRequest);
+
+                } catch (Exception e) {
+                    // Cancel timeout task if it was created
+                    Runnable timeout = timeoutTasks.remove(requestId);
+                    if (timeout != null) {
+                        mainHandler.removeCallbacks(timeout);
+                    }
+                    
+                    Log.e(TAG, "Error in loadAd UI thread", e);
+                    if (!call.isResolved()) {
+                        call.reject("Failed to load ad: " + e.getMessage());
+                    }
+                }
+            });
 
         } catch (Exception e) {
             Log.e(TAG, "Error loading ad", e);
@@ -254,6 +332,13 @@ public class AdMobNativeAdvancedPlugin extends Plugin {
     @Override
     public void handleOnDestroy() {
         super.handleOnDestroy();
+        
+        // Clean up timeout tasks
+        for (Runnable timeoutTask : timeoutTasks.values()) {
+            mainHandler.removeCallbacks(timeoutTask);
+        }
+        timeoutTasks.clear();
+        
         // Clean up loaded ads
         loadedAds.clear();
     }
