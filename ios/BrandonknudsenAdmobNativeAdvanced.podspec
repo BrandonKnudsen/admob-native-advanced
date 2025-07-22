@@ -1,5 +1,5 @@
 Pod::Spec.new do |spec|
-  spec.name = 'AdMobNativeAdvanced'
+  spec.name = 'BrandonknudsenAdmobNativeAdvanced'
   spec.version = '1.0.0'
   spec.summary = 'Capacitor plugin for Google AdMob Native Advanced Ads'
   spec.license = 'MIT'
