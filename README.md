@@ -10,8 +10,9 @@ A Capacitor plugin for displaying Google AdMob Native Advanced Ads in Ionic and 
 - ✅ Click and impression tracking
 - ✅ Support for both app install and content ads
 - ✅ AdChoices compliance
-- ✅ Cross-platform (iOS & Android)
+- ✅ Cross-platform (iOS &amp; Android)
 - ✅ TypeScript support
+- ✅ Base64 encoded image data URLs for custom rendering
 
 ## Installation
 
@@ -363,7 +364,7 @@ interface NativeAdData {
   store?: string;                  // App store name (app install ads)
   price?: string;                  // App price (app install ads)
   starRating?: number;             // Star rating (app install ads)
-  mediaContentUrl?: string;        // Main ad image URL
+  mediaContentUrl?: string;        // Main ad image (base64 data URL) or video URL (iOS only)
   iconUrl?: string;                // Ad icon URL
   adChoicesIconUrl?: string;       // AdChoices icon URL
   adChoicesText?: string;          // AdChoices text
@@ -408,6 +409,7 @@ try {
 - Load ads asynchronously
 - Don't block UI while loading ads
 - Implement proper error handling for failed ad loads
+- Note: On Android, video ads are not currently supported for custom rendering; only image ads will have mediaContentUrl.
 
 ## Troubleshooting
 

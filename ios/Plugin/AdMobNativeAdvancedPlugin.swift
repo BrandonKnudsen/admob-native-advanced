@@ -1,6 +1,7 @@
 import Foundation
 import Capacitor
 import GoogleMobileAds
+import UIKit
 
 @objc(AdMobNativeAdvancedPlugin)
 public class AdMobNativeAdvancedPlugin: CAPPlugin {
@@ -57,8 +58,8 @@ public class AdMobNativeAdvancedPlugin: CAPPlugin {
             return
         }
         
-        // Report click to AdMob
-        nativeAd.recordClick()
+        // Report click to AdMob (assuming click on call to action)
+        nativeAd.performClickOnAsset(withKey: GADNativeCallToActionAsset)
         call.resolve()
     }
     
@@ -118,19 +119,29 @@ public class AdMobNativeAdvancedPlugin: CAPPlugin {
         }
         
         // Extract media content
-        if let mediaContent = nativeAd.mediaContent, let mediaURL = mediaContent.mediaURL {
-            adData["mediaContentUrl"] = mediaURL.absoluteString
+        var mediaContentUrl: String? = nil
+        if let mediaContent = nativeAd.mediaContent {
+            if mediaContent.hasVideoContent, let videoURL = mediaContent.videoURL {
+                mediaContentUrl = videoURL.absoluteString
+            } else if let mainImage = mediaContent.mainImage {
+                mediaContentUrl = imageToBase64(mainImage)
+            }
         }
+        adData["mediaContentUrl"] = mediaContentUrl
         
         // Extract icon
-        if let icon = nativeAd.icon, let iconURL = icon.imageURL {
-            adData["iconUrl"] = iconURL.absoluteString
+        var iconUrl: String? = nil
+        if let iconImage = nativeAd.icon?.image {
+            iconUrl = imageToBase64(iconImage)
         }
+        adData["iconUrl"] = iconUrl
         
         // Extract AdChoices icon
-        if let adChoicesInfo = nativeAd.adChoicesInfo, let logo = adChoicesInfo.logo, let logoURL = logo.imageURL {
-            adData["adChoicesIconUrl"] = logoURL.absoluteString
+        var adChoicesIconUrl: String? = nil
+        if let adChoicesInfo = nativeAd.adChoicesInfo, let logoImage = adChoicesInfo.images.first?.image {
+            adChoicesIconUrl = imageToBase64(logoImage)
         }
+        adData["adChoicesIconUrl"] = adChoicesIconUrl
         
         // Extract AdChoices text
         if nativeAd.adChoicesInfo != nil {
@@ -142,6 +153,11 @@ public class AdMobNativeAdvancedPlugin: CAPPlugin {
         adData["isContentAd"] = nativeAd.store == nil
         
         return adData
+    }
+    
+    private func imageToBase64(_ image: UIImage) -> String? {
+        guard let data = image.pngData() else { return nil }
+        return "data:image/png;base64," + data.base64EncodedString()
     }
 }
 

@@ -21,6 +21,12 @@ import com.google.android.gms.ads.nativead.NativeAdView;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import android.graphics.Bitmap;
+import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.Drawable;
+import android.util.Base64;
+import java.io.ByteArrayOutputStream;
+import android.os.Bundle;
 
 @CapacitorPlugin(name = "AdMobNativeAdvanced")
 public class AdMobNativeAdvancedPlugin extends Plugin {
@@ -118,7 +124,7 @@ public class AdMobNativeAdvancedPlugin extends Plugin {
             NativeAd nativeAd = loadedAds.get(adId);
             if (nativeAd != null) {
                 // Report click to AdMob
-                nativeAd.recordClick();
+                nativeAd.performClick(new Bundle());
                 call.resolve();
             } else {
                 call.reject("Ad not found with ID: " + adId);
@@ -193,20 +199,38 @@ public class AdMobNativeAdvancedPlugin extends Plugin {
             adData.put("starRating", nativeAd.getStarRating().doubleValue());
         }
 
-        // Extract media content
-        if (nativeAd.getMediaContent() != null && nativeAd.getMediaContent().getMediaUri() != null) {
-            adData.put("mediaContentUrl", nativeAd.getMediaContent().getMediaUri().toString());
+        // Extract media content (image only for now)
+        String mediaContentUrl = null;
+        if (nativeAd.getMediaContent() != null && !nativeAd.getMediaContent().hasVideoContent() && nativeAd.getMediaContent().getMainImage() != null) {
+            Drawable mainDrawable = nativeAd.getMediaContent().getMainImage();
+            if (mainDrawable instanceof BitmapDrawable) {
+                Bitmap bitmap = ((BitmapDrawable) mainDrawable).getBitmap();
+                mediaContentUrl = bitmapToBase64(bitmap);
+            }
         }
+        adData.put("mediaContentUrl", mediaContentUrl);
 
         // Extract icon
-        if (nativeAd.getIcon() != null && nativeAd.getIcon().getUri() != null) {
-            adData.put("iconUrl", nativeAd.getIcon().getUri().toString());
+        String iconUrl = null;
+        if (nativeAd.getIcon() != null && nativeAd.getIcon().getDrawable() != null) {
+            Drawable iconDrawable = nativeAd.getIcon().getDrawable();
+            if (iconDrawable instanceof BitmapDrawable) {
+                Bitmap bitmap = ((BitmapDrawable) iconDrawable).getBitmap();
+                iconUrl = bitmapToBase64(bitmap);
+            }
         }
+        adData.put("iconUrl", iconUrl);
 
         // Extract AdChoices icon
-        if (nativeAd.getAdChoicesInfo() != null && nativeAd.getAdChoicesInfo().getLogo() != null) {
-            adData.put("adChoicesIconUrl", nativeAd.getAdChoicesInfo().getLogo().getUri().toString());
+        String adChoicesIconUrl = null;
+        if (nativeAd.getAdChoicesInfo() != null && !nativeAd.getAdChoicesInfo().getImages().isEmpty()) {
+            NativeAd.Image logoImage = nativeAd.getAdChoicesInfo().getImages().get(0);
+            if (logoImage.getDrawable() != null && logoImage.getDrawable() instanceof BitmapDrawable) {
+                Bitmap bitmap = ((BitmapDrawable) logoImage.getDrawable()).getBitmap();
+                adChoicesIconUrl = bitmapToBase64(bitmap);
+            }
         }
+        adData.put("adChoicesIconUrl", adChoicesIconUrl);
 
         // Extract AdChoices text
         if (nativeAd.getAdChoicesInfo() != null) {
@@ -218,6 +242,13 @@ public class AdMobNativeAdvancedPlugin extends Plugin {
         adData.put("isContentAd", nativeAd.getStore() == null);
 
         return adData;
+    }
+
+    private String bitmapToBase64(Bitmap bitmap) {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        bitmap.compress(Bitmap.CompressFormat.PNG, 100, baos);
+        byte[] b = baos.toByteArray();
+        return "data:image/png;base64," + Base64.encodeToString(b, Base64.DEFAULT);
     }
 
     @Override
