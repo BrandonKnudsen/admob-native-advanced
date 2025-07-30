@@ -7,4 +7,7 @@ CAP_PLUGIN(AdMobNativeAdvancedPlugin, "AdMobNativeAdvanced",
            CAP_PLUGIN_METHOD(loadAd, CAPPluginReturnPromise);
            CAP_PLUGIN_METHOD(reportClick, CAPPluginReturnPromise);
            CAP_PLUGIN_METHOD(reportImpression, CAPPluginReturnPromise);
+           CAP_PLUGIN_METHOD(positionNativeAd, CAPPluginReturnPromise);
+           CAP_PLUGIN_METHOD(hideNativeAd, CAPPluginReturnPromise);
+           CAP_PLUGIN_METHOD(configureNativeAdStyle, CAPPluginReturnPromise);
 ) 

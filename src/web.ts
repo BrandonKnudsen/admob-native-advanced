@@ -2,7 +2,10 @@ import type {
   AdMobNativeAdvancedPlugin, 
   InitializeOptions, 
   LoadAdOptions, 
-  NativeAdData 
+  NativeAdData,
+  PositionNativeAdOptions,
+  HideNativeAdOptions,
+  ConfigureNativeAdStyleOptions
 } from './definitions';
 
 export class AdMobNativeAdvancedWeb implements AdMobNativeAdvancedPlugin {
@@ -29,7 +32,8 @@ export class AdMobNativeAdvancedWeb implements AdMobNativeAdvancedPlugin {
       iconUrl: 'https://via.placeholder.com/50x50',
       adChoicesIconUrl: 'https://via.placeholder.com/20x20',
       adChoicesText: 'AdChoices',
-      isContentAd: true
+      isContentAd: true,
+      nativeRendered: false
     };
   }
 
@@ -39,5 +43,17 @@ export class AdMobNativeAdvancedWeb implements AdMobNativeAdvancedPlugin {
 
   async reportImpression(adId: string): Promise<void> {
     console.log(`Ad impression reported for ad: ${adId}`);
+  }
+
+  async positionNativeAd(_options: PositionNativeAdOptions): Promise<void> {
+    console.warn('Native ad positioning is not supported on web platform');
+  }
+
+  async hideNativeAd(_options: HideNativeAdOptions): Promise<void> {
+    console.warn('Native ad hiding is not supported on web platform');
+  }
+
+  async configureNativeAdStyle(_options: ConfigureNativeAdStyleOptions): Promise<void> {
+    console.warn('Native ad styling is not supported on web platform');
   }
 } 

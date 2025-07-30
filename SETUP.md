@@ -1,299 +1,747 @@
-# Setup Guide for AdMob Native Advanced Plugin
+# AdMob Native Advanced Setup Guide
 
-This guide will walk you through setting up the complete Capacitor plugin for Google AdMob Native Advanced Ads.
+## Overview
 
-## Prerequisites
+This plugin provides Google AdMob Native Advanced Ads support for Capacitor applications with a hybrid approach:
 
-- Node.js 16+ and npm
-- Git
-- Android Studio (for Android development)
-- Xcode (for iOS development)
-- Firebase CLI (for backend functions)
+- **iOS**: Native rendering using `GADNativeAdView` overlays for proper click tracking and URL handling
+- **Android**: JavaScript rendering with programmatic click/impression reporting (or native rendering if desired)
+- **Web**: Mock data for development
 
-## Step 1: Create GitHub Repository
+## Installation
 
 ```bash
-# Initialize git repository
-git init
-
-# Add all files
-git add .
-
-# Create initial commit
-git commit -m "Initial commit: AdMob Native Advanced Plugin"
-
-# Create GitHub repository and push
-# (Do this on GitHub.com first, then:)
-git remote add origin https://github.com/yourusername/admob-native-advanced.git
-git branch -M main
-git push -u origin main
+npm install your-plugin-name
+npx cap sync
 ```
 
-## Step 2: Build the Plugin
+## Configuration
 
-```bash
-# Install dependencies
-npm install
+### iOS Setup
 
-# Build TypeScript
-npm run build
-
-# Verify build output
-ls dist/
+1. Add your AdMob App ID to `ios/App/App/Info.plist`:
+```xml
+<key>GADApplicationIdentifier</key>
+<string>ca-app-pub-xxxxxxxxxxxxxxxx~yyyyyyyyyy</string>
 ```
 
-## Step 3: Test in a Capacitor App
+2. Ensure your `ios/Podfile` includes the Google Mobile Ads SDK (usually auto-included).
 
-### Create a test Ionic app:
+### Android Setup
 
-```bash
-# Create new Ionic app
-ionic start test-admob-app tabs --type=angular
-
-cd test-admob-app
-
-# Add Capacitor
-ionic cap add android
-ionic cap add ios
-
-# Install the plugin locally
-npm install ../path/to/admob-native-advanced
-
-# Sync Capacitor
-ionic cap sync
+1. Add your AdMob App ID to `android/app/src/main/AndroidManifest.xml`:
+```xml
+<meta-data
+    android:name="com.google.android.gms.ads.APPLICATION_ID"
+    android:value="ca-app-pub-xxxxxxxxxxxxxxxx~yyyyyyyyyy"/>
 ```
 
-### Update the test app:
+## Usage
 
-1. **Add to `src/app/app.component.ts`:**
+### Basic Implementation
+
 ```typescript
-import { Component } from '@angular/core';
-import { AdMobNativeAdvanced } from '@brandonknudsen/admob-native-advanced';
+import { AdMobNativeAdvanced } from 'your-plugin-name';
+import { Capacitor } from '@capacitor/core';
+
+// Initialize
+await AdMobNativeAdvanced.initialize({
+  appId: 'ca-app-pub-xxxxxxxxxxxxxxxx~yyyyyyyyyy'
+});
+
+// Load ad
+const adData = await AdMobNativeAdvanced.loadAd({
+  adUnitId: 'ca-app-pub-xxxxxxxxxxxxxxxx/yyyyyyyyyy'
+});
+```
+
+### Angular Component Example
+
+```typescript
+// native-ad.component.ts
+import { Component, ElementRef, ViewChild, AfterViewInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
+import { AdMobNativeAdvanced, NativeAdData } from 'your-plugin-name';
+import { Capacitor } from '@capacitor/core';
 
 @Component({
-  selector: 'app-root',
-  templateUrl: 'app.component.html',
-  styleUrls: ['app.component.scss'],
+  selector: 'app-native-ad',
+  template: `
+    <div class="native-ad-container">
+      <!-- iOS: Invisible placeholder for native overlay positioning -->
+      <div 
+        #adPlaceholder 
+        class="native-ad-placeholder"
+        [style.visibility]="isIOS && adData ? 'hidden' : 'visible'"
+        *ngIf="adData">
+        
+        <!-- Android/Web: Rendered in HTML -->
+        <div class="native-ad" *ngIf="!isIOS && adData">
+          <div class="ad-header">
+            <img [src]="adData.iconUrl" class="ad-icon" *ngIf="adData.iconUrl">
+            <div class="ad-text">
+              <h3 class="ad-headline">{{ adData.headline }}</h3>
+              <p class="ad-advertiser">{{ adData.advertiser }}</p>
+            </div>
+          </div>
+          
+          <div class="ad-media" *ngIf="adData.mediaContentUrl">
+            <img [src]="adData.mediaContentUrl" class="ad-image">
+          </div>
+          
+          <p class="ad-body">{{ adData.body }}</p>
+          
+          <button 
+            class="ad-cta" 
+            (click)="onAdClick()"
+            *ngIf="adData.callToAction">
+            {{ adData.callToAction }}
+          </button>
+          
+          <span class="ad-choices">{{ adData.adChoicesText || 'Sponsored' }}</span>
+        </div>
+        
+        <!-- iOS: Placeholder maintains layout space -->
+        <div 
+          class="native-ad native-ad-ios-placeholder" 
+          *ngIf="isIOS"
+          [style.height.px]="calculateAdHeight()">
+          <div class="loading-indicator">Loading Ad...</div>
+        </div>
+      </div>
+    </div>
+  `,
+  styles: [`
+    .native-ad-container {
+      margin: 16px 0;
+    }
+    
+    .native-ad {
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 12px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .ad-header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    
+    .ad-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 6px;
+      margin-right: 8px;
+      object-fit: cover;
+    }
+    
+    .ad-headline {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+      line-height: 1.3;
+    }
+    
+    .ad-advertiser {
+      margin: 4px 0 0 0;
+      font-size: 12px;
+      color: #666;
+    }
+    
+    .ad-media {
+      margin: 12px 0;
+    }
+    
+    .ad-image {
+      width: 100%;
+      max-height: 150px;
+      object-fit: cover;
+      border-radius: 6px;
+    }
+    
+    .ad-body {
+      margin: 8px 0;
+      font-size: 14px;
+      line-height: 1.4;
+      color: #333;
+    }
+    
+    .ad-cta {
+      width: 100%;
+      padding: 12px;
+      background: #007AFF;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      margin: 12px 0 8px 0;
+      cursor: pointer;
+    }
+    
+    .ad-choices {
+      font-size: 10px;
+      color: #999;
+      text-transform: uppercase;
+    }
+    
+    .native-ad-ios-placeholder {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f5f5f5;
+      color: #666;
+    }
+    
+    .loading-indicator {
+      font-size: 14px;
+    }
+  `]
 })
-export class AppComponent {
-  constructor() {
-    this.initializeAdMob();
-  }
+export class NativeAdComponent implements AfterViewInit, OnDestroy {
+  @ViewChild('adPlaceholder') adPlaceholder!: ElementRef;
+  
+  adData: NativeAdData | null = null;
+  isIOS = Capacitor.getPlatform() === 'ios';
+  private resizeObserver?: ResizeObserver;
+  private intersectionObserver?: IntersectionObserver;
+  
+  constructor(private cdr: ChangeDetectorRef) {}
 
-  async initializeAdMob() {
-    try {
-      await AdMobNativeAdvanced.initialize({
-        appId: 'ca-app-pub-3940256099942544~3347511713' // Test app ID
-      });
-      console.log('AdMob initialized successfully');
-    } catch (error) {
-      console.error('Failed to initialize AdMob:', error);
+  async ngAfterViewInit() {
+    await this.loadAd();
+    
+    if (this.isIOS && this.adData) {
+      this.setupIOSPositioning();
     }
   }
-}
-```
 
-2. **Add to `src/app/tab1/tab1.page.ts`:**
-```typescript
-import { Component } from '@angular/core';
-import { AdMobNativeAdvanced, NativeAdData } from '@brandonknudsen/admob-native-advanced';
+  ngOnDestroy() {
+    if (this.isIOS && this.adData) {
+      AdMobNativeAdvanced.hideNativeAd({ adId: this.adData.adId });
+    }
+    
+    this.resizeObserver?.disconnect();
+    this.intersectionObserver?.disconnect();
+  }
 
-@Component({
-  selector: 'app-tab1',
-  templateUrl: 'tab1.page.html',
-  styleUrls: ['tab1.page.scss'],
-})
-export class Tab1Page {
-  adData: NativeAdData | null = null;
-
-  async loadAd() {
+  private async loadAd() {
     try {
       this.adData = await AdMobNativeAdvanced.loadAd({
-        adUnitId: 'ca-app-pub-3940256099942544/2247696110' // Test ad unit ID
+        adUnitId: 'ca-app-pub-3940256099942544/2247696110' // Test ad unit
       });
-      console.log('Ad loaded:', this.adData);
+      
+      this.cdr.detectChanges();
+      
+      // Configure styling for iOS
+      if (this.isIOS && this.adData) {
+        await AdMobNativeAdvanced.configureNativeAdStyle({
+          adId: this.adData.adId,
+          style: {
+            // Container styling (matches .native-ad-container)
+            backgroundColor: '#ffffff',
+            cornerRadius: 8,
+            borderWidth: 1,
+            borderColor: '#e0e0e0',
+            
+            // Text styling (matches your SCSS)
+            headlineColor: '#333333',      // .ad-headline
+            headlineFontSize: 16,
+            bodyColor: '#666666',          // .ad-body  
+            bodyFontSize: 14,
+            advertiserColor: '#999999',    // .ad-advertiser
+            advertiserFontSize: 11,
+            
+            // CTA button styling (matches .ad-cta-button)
+            ctaBackgroundColor: '#2196f3',
+            ctaTextColor: '#ffffff',
+            ctaFontSize: 14
+          }
+        });
+      }
     } catch (error) {
       console.error('Failed to load ad:', error);
     }
   }
-}
-```
 
-3. **Update `src/app/tab1/tab1.page.html`:**
-```html
-<ion-header [translucent]="true">
-  <ion-toolbar>
-    <ion-title>
-      AdMob Native Advanced Test
-    </ion-title>
-  </ion-toolbar>
-</ion-header>
+  private setupIOSPositioning() {
+    if (!this.adPlaceholder || !this.adData) return;
 
-<ion-content [fullscreen]="true">
-  <ion-header collapse="condense">
-    <ion-toolbar>
-      <ion-title size="large">AdMob Test</ion-title>
-    </ion-toolbar>
-  </ion-header>
+    // Initial positioning
+    this.positionNativeAd();
 
-  <div class="container">
-    <ion-button (click)="loadAd()">Load Native Ad</ion-button>
+    // Setup resize observer for window resizing
+    this.resizeObserver = new ResizeObserver(() => {
+      this.positionNativeAd();
+    });
+    this.resizeObserver.observe(document.body);
+
+    // Setup intersection observer for scroll positioning
+    this.intersectionObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          this.positionNativeAd();
+        } else {
+          // Hide when not visible
+          AdMobNativeAdvanced.hideNativeAd({ adId: this.adData!.adId });
+        }
+      });
+    }, { threshold: 0.1 });
     
-    <div *ngIf="adData" class="native-ad">
-      <h3>{{ adData.headline }}</h3>
-      <p>{{ adData.body }}</p>
-      <img *ngIf="adData.mediaContentUrl" [src]="adData.mediaContentUrl" alt="Ad media">
-      <button>{{ adData.callToAction }}</button>
-    </div>
-  </div>
-</ion-content>
-```
+    this.intersectionObserver.observe(this.adPlaceholder.nativeElement);
 
-## Step 4: Platform-Specific Configuration
+    // Listen for scroll events to reposition
+    window.addEventListener('scroll', this.throttle(() => {
+      this.positionNativeAd();
+    }, 16)); // ~60fps
+  }
 
-### Android Setup
+  private positionNativeAd() {
+    if (!this.adPlaceholder || !this.adData || !this.isIOS) return;
 
-1. **Update `android/app/src/main/AndroidManifest.xml`:**
-```xml
-<application>
-    <!-- Add your AdMob app ID -->
-    <meta-data
-        android:name="com.google.android.gms.ads.APPLICATION_ID"
-        android:value="ca-app-pub-3940256099942544~3347511713" />
-</application>
-```
+    const rect = this.adPlaceholder.nativeElement.getBoundingClientRect();
+    const scrollY = window.pageYOffset || document.documentElement.scrollTop;
 
-2. **Test on Android:**
-```bash
-ionic cap run android
-```
+    AdMobNativeAdvanced.positionNativeAd({
+      adId: this.adData.adId,
+      x: rect.left,
+      y: rect.top + scrollY,
+      width: rect.width,
+      height: rect.height
+    });
+  }
 
-### iOS Setup
+  private calculateAdHeight(): number {
+    // Estimate height based on content
+    let height = 0;
+    height += 52; // Header (icon + text)
+    height += 150; // Media
+    height += 60; // Body text (estimate)
+    height += 44; // CTA button
+    height += 40; // Padding
+    return height;
+  }
 
-1. **Update `ios/App/App/Info.plist`:**
-```xml
-<key>GADApplicationIdentifier</key>
-<string>ca-app-pub-3940256099942544~3347511713</string>
-```
+  async onAdClick() {
+    if (!this.adData) return;
+    
+    // For Android, manually report click
+    if (!this.isIOS) {
+      try {
+        await AdMobNativeAdvanced.reportClick(this.adData.adId);
+      } catch (error) {
+        console.error('Failed to report click:', error);
+      }
+    }
+    // iOS clicks are handled automatically by the SDK
+  }
 
-2. **Test on iOS:**
-```bash
-ionic cap run ios
-```
-
-## Step 5: Deploy Backend Functions (Optional)
-
-### Setup Firebase:
-
-```bash
-# Install Firebase CLI
-npm install -g firebase-tools
-
-# Login to Firebase
-firebase login
-
-# Initialize Firebase project
-cd backend
-firebase init functions
-
-# Deploy functions
-firebase deploy --only functions
-```
-
-### Configure Firestore:
-
-Create the following collections in Firestore:
-
-1. **`admob-configs`** - Store app configurations
-2. **`ad-analytics`** - Store ad performance data
-3. **`ab-tests`** - Store A/B test configurations
-
-Example document in `admob-configs`:
-```json
-{
-  "appId": "ca-app-pub-3940256099942544~3347511713",
-  "adUnitIds": {
-    "android": "ca-app-pub-3940256099942544/2247696110",
-    "ios": "ca-app-pub-3940256099942544/3985214057"
-  },
-  "testMode": true,
-  "refreshInterval": 300
+  private throttle(func: Function, limit: number) {
+    let lastFunc: NodeJS.Timeout;
+    let lastRan: number;
+    return function(this: any, ...args: any[]) {
+      if (!lastRan) {
+        func.apply(this, args);
+        lastRan = Date.now();
+      } else {
+        clearTimeout(lastFunc);
+        lastFunc = setTimeout(() => {
+          if ((Date.now() - lastRan) >= limit) {
+            func.apply(this, args);
+            lastRan = Date.now();
+          }
+        }, limit - (Date.now() - lastRan));
+      }
+    };
+  }
 }
 ```
 
-## Step 6: Publish to npm
+### Feed Component Integration
 
-```bash
-# Login to npm
-npm login
+```typescript
+// feed.component.ts
+export class FeedComponent {
+  feedItems: (FeedPost | AdItem)[] = [];
 
-# Publish package
-npm publish
+  constructor() {
+    this.loadFeed();
+  }
 
-# Or publish with scope
-npm publish --access public
+  private loadFeed() {
+    // Mix regular content with ads
+    this.feedItems = [
+      { type: 'post', content: 'Regular post 1' },
+      { type: 'post', content: 'Regular post 2' },
+      { type: 'ad', adIndex: 0 }, // Insert ad every 3 posts
+      { type: 'post', content: 'Regular post 3' },
+      { type: 'post', content: 'Regular post 4' },
+      { type: 'ad', adIndex: 1 },
+      // ... more items
+    ];
+  }
+
+  // Update ad positions on feed changes
+  updateAdPositions() {
+    // Called when feed scrolls, resizes, or updates
+    this.feedItems.forEach(item => {
+      if (item.type === 'ad') {
+        // Ad components will handle their own repositioning
+      }
+    });
+  }
+}
 ```
 
-## Step 7: Create Release
+## Event Handling
 
-1. **Update version in `package.json`**
-2. **Create git tag:**
-```bash
-git tag v1.0.0
-git push origin v1.0.0
+```typescript
+import { AdMobNativeAdvanced } from 'your-plugin-name';
+
+// Listen for ad events (iOS only)
+AdMobNativeAdvanced.addListener('adClicked', (data) => {
+  console.log('Ad clicked:', data.adId);
+  // Track click in analytics
+});
+
+AdMobNativeAdvanced.addListener('adImpression', (data) => {
+  console.log('Ad impression:', data.adId);
+  // Track impression in analytics
+});
+
+AdMobNativeAdvanced.addListener('adWillPresentScreen', (data) => {
+  console.log('Ad will present full screen:', data.adId);
+  // Pause video, etc.
+});
+
+AdMobNativeAdvanced.addListener('adDidDismissScreen', (data) => {
+  console.log('Ad dismissed full screen:', data.adId);
+  // Resume video, etc.
+});
 ```
 
-3. **Create GitHub release with:**
-   - Release notes
-   - Installation instructions
-   - Usage examples
+## Best Practices
 
-## Testing Checklist
+### iOS Native Rendering
+1. **Positioning**: Use `getBoundingClientRect()` for accurate positioning
+2. **Scroll Handling**: Update positions on scroll with throttling
+3. **Visibility**: Hide ads when not visible to save resources
+4. **Cleanup**: Always call `hideNativeAd()` when components unmount
 
-- [ ] Plugin builds successfully
-- [ ] TypeScript definitions are correct
-- [ ] Android ad loads and displays
-- [ ] iOS ad loads and displays
-- [ ] Click tracking works
-- [ ] Impression tracking works
-- [ ] Error handling works
-- [ ] Web fallback works
-- [ ] Documentation is complete
+### Android/Web Rendering
+1. **Click Handling**: Manually call `reportClick()` for tracking
+2. **Impression Tracking**: Call `reportImpression()` when ad becomes visible
+3. **Styling**: Match your app's design system
+
+### General
+1. **Test Ads**: Always use test ad unit IDs during development
+2. **AdChoices**: Ensure AdChoices or "Sponsored" label is visible
+3. **Layout**: Reserve appropriate space to prevent layout shifts
+4. **Error Handling**: Implement fallbacks for ad load failures
+5. **Performance**: Limit the number of concurrent ad requests
+
+## Testing
+
+Use these test ad unit IDs:
+- **Test Native Ad**: `ca-app-pub-3940256099942544/2247696110`
 
 ## Troubleshooting
 
-### Common Issues:
+### iOS Issues
+- **Overlay not visible**: Check if positioning coordinates are correct
+- **Clicks not working**: Ensure `GADNativeAdView` has correct frame and is in view hierarchy
+- **Layout issues**: Verify Auto Layout constraints in `setupNativeAdViewLayout`
 
-1. **"Plugin not found" error:**
-   - Run `ionic cap sync` after installing
-   - Check plugin is in `package.json`
+### Android Issues
+- **Clicks not tracked**: Ensure `reportClick()` is called
+- **Images not loading**: Check network permissions and image URLs
 
-2. **"AdMob not initialized" error:**
-   - Ensure `initialize()` is called before `loadAd()`
-   - Check app ID is correct
+### Common Issues
+- **Ads not loading**: Verify app ID and ad unit ID are correct
+- **Test ads in production**: Replace test ad units with live ones before release 
 
-3. **Ads not loading:**
-   - Use test ad unit IDs during development
-   - Check internet connection
-   - Verify platform-specific setup
+## Matching Your Existing Design
 
-4. **Build errors:**
-   - Check all dependencies are installed
-   - Verify TypeScript configuration
-   - Ensure Capacitor version compatibility
+If you have an existing `native-ad.component.scss` file like the one you've shared, here's how to configure the iOS native ad to match it perfectly:
 
-## Next Steps
+### iOS Styling Configuration
 
-1. **Add unit tests** using Jest
-2. **Add integration tests** using Cypress
-3. **Set up CI/CD** with GitHub Actions
-4. **Add more ad formats** (Banner, Interstitial)
-5. **Implement ad mediation** support
-6. **Add analytics dashboard** for ad performance
+```typescript
+// In your native-ad.component.ts after loading the ad
+if (this.isIOS && this.adData) {
+  await AdMobNativeAdvanced.configureNativeAdStyle({
+    adId: this.adData.adId,
+    style: {
+      // Container (.native-ad-container)
+      backgroundColor: '#ffffff',
+      cornerRadius: 8,
+      borderWidth: 1,
+      borderColor: '#e0e0e0',
+      
+      // Headlines (.ad-headline)
+      headlineColor: '#333333',
+      headlineFontSize: 16,
+      
+      // Body text (.ad-body)
+      bodyColor: '#666666',
+      bodyFontSize: 14,
+      
+      // Advertiser text (.ad-advertiser)
+      advertiserColor: '#999999',
+      advertiserFontSize: 11,
+      
+      // CTA Button (.ad-cta-button)
+      ctaBackgroundColor: '#2196f3',
+      ctaTextColor: '#ffffff',
+      ctaFontSize: 14
+    }
+  });
+}
+```
 
-## Support
+### Layout Specifications
 
-For issues and questions:
-- Create GitHub issue
-- Check AdMob documentation
-- Review Capacitor plugin guidelines 
+The iOS native ad will automatically match these layout elements from your SCSS:
+
+- **Container**: 12px padding, 8px border-radius, #e0e0e0 border
+- **Icon**: 40x40px, 4px border-radius, positioned top-left with 12px margin-right
+- **Headline**: Bold 16px, #333 color, positioned next to icon
+- **Body**: 14px, #666 color, full width below header section
+- **Media**: Full width, 4px border-radius, max-height 200px (automatically handled)
+- **App Info**: Horizontal stack with 8px spacing (store badge, price, star rating)
+- **CTA Button**: Full width, #2196f3 background, white text, 4px border-radius
+- **Advertiser**: 11px, #999 color, bottom of container
+- **Ad Label**: Top-left overlay, "Ad" text, dark background
+- **AdChoices**: Top-right overlay with info icon
+
+### Component Integration
+
+```typescript
+export class NativeAdComponent implements AfterViewInit, OnDestroy {
+  @ViewChild('adPlaceholder') adPlaceholder!: ElementRef;
+  
+  adData: NativeAdData | null = null;
+  isIOS = Capacitor.getPlatform() === 'ios';
+  
+  async ngAfterViewInit() {
+    await this.loadAd();
+    
+    if (this.isIOS && this.adData) {
+      await this.configureIOSNativeAd();
+      this.setupIOSPositioning();
+    }
+  }
+
+  ngOnDestroy() {
+    if (this.isIOS && this.adData) {
+      AdMobNativeAdvanced.hideNativeAd({ adId: this.adData.adId });
+    }
+  }
+
+  private async loadAd() {
+    try {
+      this.adData = await AdMobNativeAdvanced.loadAd({
+        adUnitId: 'your-ad-unit-id'
+      });
+    } catch (error) {
+      console.error('Failed to load ad:', error);
+    }
+  }
+
+  private async configureIOSNativeAd() {
+    if (!this.adData) return;
+    
+    // Apply exact styling to match your SCSS
+    await AdMobNativeAdvanced.configureNativeAdStyle({
+      adId: this.adData.adId,
+      style: {
+        backgroundColor: '#ffffff',
+        cornerRadius: 8,
+        borderWidth: 1,
+        borderColor: '#e0e0e0',
+        headlineColor: '#333333',
+        headlineFontSize: 16,
+        bodyColor: '#666666',
+        bodyFontSize: 14,
+        advertiserColor: '#999999',
+        advertiserFontSize: 11,
+        ctaBackgroundColor: '#2196f3',
+        ctaTextColor: '#ffffff',
+        ctaFontSize: 14
+      }
+    });
+  }
+
+  private setupIOSPositioning() {
+    if (!this.adPlaceholder || !this.adData) return;
+
+    // Position native overlay
+    this.positionNativeAd();
+
+    // Handle scroll and resize
+    this.setupResponsivePositioning();
+  }
+
+  private positionNativeAd() {
+    if (!this.adPlaceholder || !this.adData || !this.isIOS) return;
+
+    const rect = this.adPlaceholder.nativeElement.getBoundingClientRect();
+    const scrollY = window.pageYOffset || document.documentElement.scrollTop;
+
+    AdMobNativeAdvanced.positionNativeAd({
+      adId: this.adData.adId,
+      x: rect.left,
+      y: rect.top + scrollY,
+      width: rect.width,
+      height: this.calculateExpectedHeight()
+    });
+  }
+
+  private calculateExpectedHeight(): number {
+    // Match your SCSS layout calculations
+    let height = 24; // Container padding (12px top + 12px bottom)
+    height += 21; // Ad label height
+    height += 8;  // Spacing after ad label
+    height += 40; // Icon height
+    height += 8;  // Spacing after icon/headline section
+    height += 60; // Estimated body text height (varies by content)
+    height += 8;  // Spacing before media
+    height += 150; // Media height (average)
+    height += 8;  // Spacing after media
+    height += 20; // App info section height
+    height += 8;  // Spacing before CTA
+    height += 36; // CTA button height
+    height += 4;  // Spacing before advertiser
+    height += 16; // Advertiser text height
+    return height;
+  }
+
+  private setupResponsivePositioning() {
+    // Throttled scroll listener
+    let ticking = false;
+    
+    const updatePosition = () => {
+      this.positionNativeAd();
+      ticking = false;
+    };
+
+    const requestTick = () => {
+      if (!ticking) {
+        requestAnimationFrame(updatePosition);
+        ticking = true;
+      }
+    };
+
+    window.addEventListener('scroll', requestTick, { passive: true });
+    window.addEventListener('resize', requestTick);
+
+    // Intersection observer for visibility
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (this.adData) {
+          if (entry.isIntersecting) {
+            this.positionNativeAd();
+          } else {
+            AdMobNativeAdvanced.hideNativeAd({ adId: this.adData.adId });
+          }
+        }
+      });
+    }, { threshold: 0.1 });
+
+    observer.observe(this.adPlaceholder.nativeElement);
+  }
+
+  async onAdClick() {
+    if (!this.adData) return;
+    
+    // Android manual click reporting (iOS handled automatically)
+    if (!this.isIOS) {
+      try {
+        await AdMobNativeAdvanced.reportClick(this.adData.adId);
+      } catch (error) {
+        console.error('Failed to report click:', error);
+      }
+    }
+  }
+}
+```
+
+### Template Updates
+
+Your template can remain largely the same, just add the iOS placeholder:
+
+```html
+<div class="native-ad-container" [class.ios-native]="isIOS" *ngIf="adData">
+  <!-- iOS: Hidden placeholder for positioning -->
+  <div 
+    #adPlaceholder 
+    class="native-ad-placeholder"
+    [style.height.px]="isIOS ? calculateExpectedHeight() : null"
+    [style.visibility]="isIOS ? 'hidden' : 'visible'">
+    
+    <!-- Your existing HTML template for Android/Web -->
+    <div class="native-ad" *ngIf="!isIOS">
+      <!-- Existing ad content from your component -->
+      <div class="ad-icon" *ngIf="adData.iconUrl">
+        <img [src]="adData.iconUrl" alt="Ad icon">
+      </div>
+      
+      <div class="ad-content">
+        <div class="ad-headline">{{ adData.headline }}</div>
+        <div class="ad-body">{{ adData.body }}</div>
+        
+        <div class="ad-media" *ngIf="adData.mediaContentUrl">
+          <img [src]="adData.mediaContentUrl" alt="Ad media">
+        </div>
+        
+        <div class="ad-app-info" *ngIf="adData.store || adData.price || adData.starRating">
+          <span class="ad-store" *ngIf="adData.store">{{ adData.store }}</span>
+          <span class="ad-price" *ngIf="adData.price">{{ adData.price }}</span>
+          <span class="ad-rating" *ngIf="adData.starRating">
+            {{ '★'.repeat(adData.starRating) }}{{ '☆'.repeat(5 - adData.starRating) }}
+          </span>
+        </div>
+        
+        <div class="ad-cta" *ngIf="adData.callToAction">
+          <button class="ad-cta-button" (click)="onAdClick()">
+            {{ adData.callToAction }}
+          </button>
+        </div>
+        
+        <div class="ad-advertiser" *ngIf="adData.advertiser">
+          {{ adData.advertiser }}
+        </div>
+      </div>
+      
+      <!-- AdChoices -->
+      <div class="ad-choices" (click)="onAdChoicesClick($event)">
+        <img class="ad-choices-icon" [src]="adData.adChoicesIconUrl" *ngIf="adData.adChoicesIconUrl">
+        <span class="ad-choices-text">{{ adData.adChoicesText || 'AdChoices' }}</span>
+      </div>
+      
+      <!-- Ad Label -->
+      <div class="ad-label">
+        <small>Ad</small>
+      </div>
+    </div>
+  </div>
+</div>
+```
+
+### SCSS Additions
+
+Add these styles to your existing SCSS to support iOS:
+
+```scss
+.native-ad-container.ios-native {
+  .native-ad-placeholder {
+    border: none;
+    background: transparent;
+    color: transparent;
+  }
+}
+```
+
+This configuration will make the iOS native ad overlay match your existing design pixel-perfectly while maintaining all the automatic click tracking and impression reporting benefits of the native SDK. 
