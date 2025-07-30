@@ -26,7 +26,8 @@ export class AdMobNativeAdvancedWeb {
             iconUrl: 'https://via.placeholder.com/50x50',
             adChoicesIconUrl: 'https://via.placeholder.com/20x20',
             adChoicesText: 'AdChoices',
-            isContentAd: true
+            isContentAd: true,
+            nativeRendered: false
         };
     }
     async reportClick(adId) {
@@ -34,5 +35,14 @@ export class AdMobNativeAdvancedWeb {
     }
     async reportImpression(adId) {
         console.log(`Ad impression reported for ad: ${adId}`);
+    }
+    async positionNativeAd(_options) {
+        console.warn('Native ad positioning is not supported on web platform');
+    }
+    async hideNativeAd(_options) {
+        console.warn('Native ad hiding is not supported on web platform');
+    }
+    async configureNativeAdStyle(_options) {
+        console.warn('Native ad styling is not supported on web platform');
     }
 }

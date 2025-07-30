@@ -19,6 +19,21 @@ export interface AdMobNativeAdvancedPlugin {
      * @param adId The ID of the ad that was shown
      */
     reportImpression(adId: string): Promise<void>;
+    /**
+     * Position and show the native ad view on iOS
+     * @param options Positioning and ad ID
+     */
+    positionNativeAd(options: PositionNativeAdOptions): Promise<void>;
+    /**
+     * Hide or remove the native ad view on iOS
+     * @param adId The ID of the ad to hide
+     */
+    hideNativeAd(options: HideNativeAdOptions): Promise<void>;
+    /**
+     * Configure native ad view styling on iOS
+     * @param options Styling options for the native ad view
+     */
+    configureNativeAdStyle(options: ConfigureNativeAdStyleOptions): Promise<void>;
 }
 export interface InitializeOptions {
     /**
@@ -31,6 +46,98 @@ export interface LoadAdOptions {
      * Your AdMob ad unit ID (e.g., "ca-app-pub-xxxxxxxxxxxxxxxx/yyyyyyyyyy")
      */
     adUnitId: string;
+}
+export interface PositionNativeAdOptions {
+    /**
+     * The ID of the ad to position
+     */
+    adId: string;
+    /**
+     * Screen X coordinate (pixels)
+     */
+    x: number;
+    /**
+     * Screen Y coordinate (pixels)
+     */
+    y: number;
+    /**
+     * Width of the ad view (pixels)
+     */
+    width: number;
+    /**
+     * Height of the ad view (pixels)
+     */
+    height: number;
+}
+export interface HideNativeAdOptions {
+    /**
+     * The ID of the ad to hide
+     */
+    adId: string;
+}
+export interface ConfigureNativeAdStyleOptions {
+    /**
+     * The ID of the ad to style
+     */
+    adId: string;
+    /**
+     * Style configuration for the native ad view
+     */
+    style: NativeAdViewStyle;
+}
+export interface NativeAdViewStyle {
+    /**
+     * Background color of the ad view (hex format, e.g., '#FFFFFF')
+     */
+    backgroundColor?: string;
+    /**
+     * Headline text color (hex format, e.g., '#000000')
+     */
+    headlineColor?: string;
+    /**
+     * Body text color (hex format, e.g., '#666666')
+     */
+    bodyColor?: string;
+    /**
+     * Advertiser text color (hex format, e.g., '#999999')
+     */
+    advertiserColor?: string;
+    /**
+     * Call-to-action button background color (hex format, e.g., '#007AFF')
+     */
+    ctaBackgroundColor?: string;
+    /**
+     * Call-to-action button text color (hex format, e.g., '#FFFFFF')
+     */
+    ctaTextColor?: string;
+    /**
+     * Corner radius for rounded corners (pixels)
+     */
+    cornerRadius?: number;
+    /**
+     * Border width (pixels)
+     */
+    borderWidth?: number;
+    /**
+     * Border color (hex format, e.g., '#DDDDDD')
+     */
+    borderColor?: string;
+    /**
+     * Headline font size (points)
+     */
+    headlineFontSize?: number;
+    /**
+     * Body font size (points)
+     */
+    bodyFontSize?: number;
+    /**
+     * Advertiser font size (points)
+     */
+    advertiserFontSize?: number;
+    /**
+     * CTA button font size (points)
+     */
+    ctaFontSize?: number;
 }
 export interface NativeAdData {
     /**
@@ -89,6 +196,10 @@ export interface NativeAdData {
      * Whether this is a content ad
      */
     isContentAd?: boolean;
+    /**
+     * Whether the ad is rendered natively (iOS only)
+     */
+    nativeRendered?: boolean;
 }
 export interface AdMobError {
     /**
