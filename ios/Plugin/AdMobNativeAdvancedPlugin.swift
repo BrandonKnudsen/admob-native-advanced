@@ -164,19 +164,14 @@ public class AdMobNativeAdvancedPlugin: CAPPlugin {
     }
     
     @objc func handleScrollEvent(_ call: CAPPluginCall) {
-        guard let adId = call.getString("adId"),
-              let scrollPosition = call.getObject("scrollPosition") as? [String: Double] else {
-            call.reject("Invalid parameters or ad not found")
+        guard let adId = call.getString("adId") else {
+            call.reject("Invalid parameters - adId is required")
             return
         }
 
         DispatchQueue.main.async {
-            let x = scrollPosition["x"] ?? 0.0
-            let y = scrollPosition["y"] ?? 0.0
-            let currentPosition = CGPoint(x: x, y: y)
-            
-            // Store the current scroll position for this ad
-            self.lastScrollPositions[adId] = currentPosition
+            // Store that this ad had a scroll event
+            self.lastScrollPositions[adId] = CGPoint(x: 0, y: 0) // Simple tracking
             
             // If auto-scroll is enabled, trigger impression tracking
             if self.autoScrollEnabled {
@@ -199,21 +194,22 @@ public class AdMobNativeAdvancedPlugin: CAPPlugin {
     
     private func startScrollTracking() {
         stopScrollTracking() // Ensure no duplicate timers
-        scrollTimer = Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) { [weak self] _ in
+        // Simplified scroll tracking - mainly for visibility checks
+        scrollTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
             guard let self = self else { return }
-            let currentScrollPosition = self.bridge?.viewController?.view.contentOffset ?? CGPoint.zero
             
-            // Iterate through loaded ads and check if they are visible
-            for (adId, ad) in self.loadedAds {
-                let adView = self.nativeAdViews[adId]
-                if let adView = adView,
-                   adView.frame.intersects(self.bridge?.viewController?.view.bounds ?? CGRect.zero) {
+            // Check visibility of ads and update impressions
+            for (adId, _) in self.loadedAds {
+                if let adView = self.nativeAdViews[adId],
+                   let viewController = self.bridge?.viewController {
                     
-                    // Check if the ad's last known position is different from the current scroll position
-                    if self.lastScrollPositions[adId] != currentScrollPosition {
-                        // If it's a new scroll, track impression
+                    // Check if ad view is still visible on screen
+                    let adViewBounds = adView.convert(adView.bounds, to: viewController.view)
+                    let screenBounds = viewController.view.bounds
+                    
+                    if screenBounds.intersects(adViewBounds) {
+                        // Ad is visible, track impression if needed
                         self.trackImpression(for: adId)
-                        self.lastScrollPositions[adId] = currentScrollPosition // Update position
                     }
                 }
             }
