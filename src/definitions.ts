@@ -40,6 +40,18 @@ export interface AdMobNativeAdvancedPlugin {
    * @param options Styling options for the native ad view
    */
   configureNativeAdStyle(options: ConfigureNativeAdStyleOptions): Promise<void>;
+
+  /**
+   * Handle scroll events for native ad synchronization
+   * @param options Scroll event options including ad ID
+   */
+  handleScrollEvent(options: HandleScrollEventOptions): Promise<void>;
+
+  /**
+   * Enable or disable automatic scroll tracking for native ads
+   * @param options Auto-scroll options
+   */
+  setAutoScrollTracking(options: AutoScrollTrackingOptions): Promise<void>;
 }
 
 export interface InitializeOptions {
@@ -95,6 +107,24 @@ export interface ConfigureNativeAdStyleOptions {
    * Style configuration for the native ad view
    */
   style: NativeAdViewStyle;
+}
+
+export interface HandleScrollEventOptions {
+  /**
+   * The ID of the ad to handle scroll for
+   */
+  adId: string;
+}
+
+export interface AutoScrollTrackingOptions {
+  /**
+   * Whether to enable automatic scroll tracking
+   */
+  enabled: boolean;
+  /**
+   * Optional throttle interval in milliseconds (default: 16ms for 60fps)
+   */
+  throttleMs?: number;
 }
 
 export interface NativeAdViewStyle {

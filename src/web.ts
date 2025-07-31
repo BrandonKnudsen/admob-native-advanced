@@ -5,55 +5,46 @@ import type {
   NativeAdData,
   PositionNativeAdOptions,
   HideNativeAdOptions,
-  ConfigureNativeAdStyleOptions
+  ConfigureNativeAdStyleOptions,
+  HandleScrollEventOptions,
+  AutoScrollTrackingOptions
 } from './definitions';
 
 export class AdMobNativeAdvancedWeb implements AdMobNativeAdvancedPlugin {
-  private isInitialized = false;
-
-  async initialize(_options: InitializeOptions): Promise<void> {
-    console.warn('AdMob Native Advanced Ads are not supported on web platform');
-    this.isInitialized = true;
+  async initialize(options: InitializeOptions): Promise<void> {
+    console.log('AdMob Native Advanced web implementation', options);
   }
 
-  async loadAd(_options: LoadAdOptions): Promise<NativeAdData> {
-    if (!this.isInitialized) {
-      throw new Error('AdMob must be initialized before loading ads');
-    }
-
-    // Return mock data for web platform
-    return {
-      adId: `web-ad-${Date.now()}`,
-      headline: 'Sample Native Ad',
-      body: 'This is a sample native ad for web platform. Native ads are only supported on mobile platforms.',
-      callToAction: 'Learn More',
-      advertiser: 'Sample Advertiser',
-      mediaContentUrl: 'https://via.placeholder.com/300x200',
-      iconUrl: 'https://via.placeholder.com/50x50',
-      adChoicesIconUrl: 'https://via.placeholder.com/20x20',
-      adChoicesText: 'AdChoices',
-      isContentAd: true,
-      nativeRendered: false
-    };
+  async loadAd(options: LoadAdOptions): Promise<NativeAdData> {
+    console.log('Loading ad in web', options);
+    throw new Error('AdMob Native Advanced is not supported on web platform');
   }
 
   async reportClick(adId: string): Promise<void> {
-    console.log(`Ad click reported for ad: ${adId}`);
+    console.log('Reporting click for ad:', adId);
   }
 
   async reportImpression(adId: string): Promise<void> {
-    console.log(`Ad impression reported for ad: ${adId}`);
+    console.log('Reporting impression for ad:', adId);
   }
 
-  async positionNativeAd(_options: PositionNativeAdOptions): Promise<void> {
-    console.warn('Native ad positioning is not supported on web platform');
+  async positionNativeAd(options: PositionNativeAdOptions): Promise<void> {
+    console.log('Positioning native ad (web):', options);
   }
 
-  async hideNativeAd(_options: HideNativeAdOptions): Promise<void> {
-    console.warn('Native ad hiding is not supported on web platform');
+  async hideNativeAd(options: HideNativeAdOptions): Promise<void> {
+    console.log('Hiding native ad (web):', options);
   }
 
-  async configureNativeAdStyle(_options: ConfigureNativeAdStyleOptions): Promise<void> {
-    console.warn('Native ad styling is not supported on web platform');
+  async configureNativeAdStyle(options: ConfigureNativeAdStyleOptions): Promise<void> {
+    console.log('Configuring native ad style (web):', options);
+  }
+
+  async handleScrollEvent(options: HandleScrollEventOptions): Promise<void> {
+    console.log('Handling scroll event (web):', options);
+  }
+
+  async setAutoScrollTracking(options: AutoScrollTrackingOptions): Promise<void> {
+    console.log('Setting auto scroll tracking (web):', options);
   }
 } 

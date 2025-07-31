@@ -238,6 +238,43 @@ public class AdMobNativeAdvancedPlugin extends Plugin {
         }
     }
 
+    @PluginMethod
+    public void handleScrollEvent(PluginCall call) {
+        // Android implementation - primarily for consistency with iOS
+        // Native ads on Android are handled within the WebView, so this is mainly a no-op
+        // but we can still track the event for analytics or future enhancements
+        try {
+            String adId = call.getString("adId");
+            if (adId == null || adId.isEmpty()) {
+                call.reject("Ad ID is required");
+                return;
+            }
+
+            // For Android, we don't need to handle scroll events since ads are rendered in WebView
+            // But we can log for debugging or analytics
+            Log.d(TAG, "Scroll event handled for ad: " + adId);
+            call.resolve();
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error handling scroll event", e);
+            call.reject("Failed to handle scroll event: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void setAutoScrollTracking(PluginCall call) {
+        // Android implementation - for consistency with iOS
+        try {
+            boolean enabled = call.getBoolean("enabled", false);
+            Log.d(TAG, "Auto scroll tracking " + (enabled ? "enabled" : "disabled"));
+            call.resolve();
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error setting auto scroll tracking", e);
+            call.reject("Failed to set auto scroll tracking: " + e.getMessage());
+        }
+    }
+
     private JSObject extractAdData(NativeAd nativeAd, String adId) {
         JSObject adData = new JSObject();
         adData.put("adId", adId);

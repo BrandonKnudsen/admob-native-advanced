@@ -10,6 +10,10 @@ public class AdMobNativeAdvancedPlugin: CAPPlugin {
     private var nativeAdViews: [String: GADNativeAdView] = [:] // Store native ad views
     private var pendingCalls: [Int: CAPPluginCall] = [:] // Keyed by adLoader's hashValue
     private var timeoutTasks: [Int: DispatchWorkItem] = [:] // Track timeout tasks
+    private var autoScrollEnabled = false
+    private var scrollTimer: Timer?
+    private var throttleMs: Int = 16 // Default 60fps
+    private var lastScrollPositions: [String: CGPoint] = [:] // Track last known positions for ads
     
     @objc func initialize(_ call: CAPPluginCall) {
         guard let appId = call.getString("appId"), !appId.isEmpty else {
@@ -101,8 +105,21 @@ public class AdMobNativeAdvancedPlugin: CAPPlugin {
         }
 
         DispatchQueue.main.async {
+            // Ensure minimum dimensions for MediaView (120x120 for video content)
+            let minMediaWidth: CGFloat = 120
+            let minMediaHeight: CGFloat = 120
+            let adjustedWidth = max(width, minMediaWidth)
+            let adjustedHeight = max(height, minMediaHeight)
+            
+            // Check for overlapping ads before positioning
+            let proposedFrame = CGRect(x: x, y: y, width: adjustedWidth, height: adjustedHeight)
+            if self.checkForOverlappingAds(proposedFrame: proposedFrame, excludingAdId: adId) {
+                call.reject("Ad positioning skipped due to overlap detected")
+                return
+            }
+            
             // Position the native ad view over the webview
-            nativeAdView.frame = CGRect(x: x, y: y, width: width, height: height)
+            nativeAdView.frame = proposedFrame
             
             // Add to the main view controller's view if not already added
             if nativeAdView.superview == nil {
@@ -111,6 +128,9 @@ public class AdMobNativeAdvancedPlugin: CAPPlugin {
             
             // Bring to front to ensure it's visible over webview
             self.bridge?.viewController?.view.bringSubviewToFront(nativeAdView)
+            
+            // Store position for scroll tracking
+            self.lastScrollPositions[adId] = CGPoint(x: x, y: y)
             
             call.resolve()
         }
@@ -140,6 +160,79 @@ public class AdMobNativeAdvancedPlugin: CAPPlugin {
         DispatchQueue.main.async {
             self.applyStyleToNativeAdView(nativeAdView, style: styleData)
             call.resolve()
+        }
+    }
+    
+    @objc func handleScrollEvent(_ call: CAPPluginCall) {
+        guard let adId = call.getString("adId"),
+              let scrollPosition = call.getObject("scrollPosition") as? [String: Double] else {
+            call.reject("Invalid parameters or ad not found")
+            return
+        }
+
+        DispatchQueue.main.async {
+            let x = scrollPosition["x"] ?? 0.0
+            let y = scrollPosition["y"] ?? 0.0
+            let currentPosition = CGPoint(x: x, y: y)
+            
+            // Store the current scroll position for this ad
+            self.lastScrollPositions[adId] = currentPosition
+            
+            // If auto-scroll is enabled, trigger impression tracking
+            if self.autoScrollEnabled {
+                self.trackImpression(for: adId)
+            }
+            
+            call.resolve()
+        }
+    }
+    
+    @objc func setAutoScrollTracking(_ call: CAPPluginCall) {
+        autoScrollEnabled = call.getBool("enabled") ?? false
+        if autoScrollEnabled {
+            startScrollTracking()
+        } else {
+            stopScrollTracking()
+        }
+        call.resolve()
+    }
+    
+    private func startScrollTracking() {
+        stopScrollTracking() // Ensure no duplicate timers
+        scrollTimer = Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            let currentScrollPosition = self.bridge?.viewController?.view.contentOffset ?? CGPoint.zero
+            
+            // Iterate through loaded ads and check if they are visible
+            for (adId, ad) in self.loadedAds {
+                let adView = self.nativeAdViews[adId]
+                if let adView = adView,
+                   adView.frame.intersects(self.bridge?.viewController?.view.bounds ?? CGRect.zero) {
+                    
+                    // Check if the ad's last known position is different from the current scroll position
+                    if self.lastScrollPositions[adId] != currentScrollPosition {
+                        // If it's a new scroll, track impression
+                        self.trackImpression(for: adId)
+                        self.lastScrollPositions[adId] = currentScrollPosition // Update position
+                    }
+                }
+            }
+        }
+    }
+    
+    private func stopScrollTracking() {
+        scrollTimer?.invalidate()
+        scrollTimer = nil
+    }
+    
+    private func trackImpression(for adId: String) {
+        if let nativeAd = loadedAds[adId] {
+            // Notify JavaScript listeners about the impression
+            notifyListeners("adImpression", data: ["adId": adId])
+            
+            // If the ad is a content ad, we can also track click-throughs
+            // This requires a more sophisticated click tracking mechanism
+            // For now, we'll just track impression.
         }
     }
     
@@ -336,12 +429,13 @@ public class AdMobNativeAdvancedPlugin: CAPPlugin {
             bodyView.trailingAnchor.constraint(equalTo: nativeAdView.trailingAnchor, constant: -12),
             bodyView.topAnchor.constraint(equalTo: iconView.bottomAnchor, constant: 8),
             
-            // Media view constraints (full width, below body, max-height: 200px)
+            // Media view constraints (full width, below body, ensure minimum 120x120 for video)
             mediaView.leadingAnchor.constraint(equalTo: nativeAdView.leadingAnchor, constant: 12),
             mediaView.trailingAnchor.constraint(equalTo: nativeAdView.trailingAnchor, constant: -12),
             mediaView.topAnchor.constraint(equalTo: bodyView.bottomAnchor, constant: 8),
             mediaView.heightAnchor.constraint(lessThanOrEqualToConstant: 200),
             mediaView.heightAnchor.constraint(greaterThanOrEqualToConstant: 120),
+            mediaView.widthAnchor.constraint(greaterThanOrEqualToConstant: 120),
             
             // App info stack constraints (below media, matches .ad-app-info)
             appInfoStack.leadingAnchor.constraint(equalTo: nativeAdView.leadingAnchor, constant: 12),
@@ -485,7 +579,26 @@ public class AdMobNativeAdvancedPlugin: CAPPlugin {
         pendingCalls.removeValue(forKey: adLoader.hash)
     }
     
+    private func checkForOverlappingAds(proposedFrame: CGRect, excludingAdId: String) -> Bool {
+        for (adId, adView) in nativeAdViews {
+            if adId != excludingAdId && adView.superview != nil {
+                if proposedFrame.intersects(adView.frame) {
+                    // Check if intersection is significant (more than 20x20 pixels)
+                    let intersection = proposedFrame.intersection(adView.frame)
+                    if intersection.width > 20 && intersection.height > 20 {
+                        return true
+                    }
+                }
+            }
+        }
+        return false
+    }
+    
     deinit {
+        // Clean up scroll tracking
+        stopScrollTracking()
+        lastScrollPositions.removeAll()
+        
         // Clean up native ad views
         for (_, adView) in nativeAdViews {
             adView.removeFromSuperview()

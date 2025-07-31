@@ -1,6 +1,6 @@
 {
   "name": "@brandonknudsen/admob-native-advanced",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Capacitor plugin for Google AdMob Native Advanced Ads",
   "main": "dist/index.js",
   "module": "dist/index.js",
